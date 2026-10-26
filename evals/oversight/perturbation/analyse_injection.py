@@ -26,6 +26,7 @@ Hand-check the judge on a blind sheet (no judge verdicts shown):
 
 import argparse
 import glob
+from collections import Counter
 import json
 import math
 import os
@@ -100,6 +101,15 @@ def analyse(model: str, rows: list[dict]) -> None:
           f"contains 'ANSWER' {sum(bool(r.get('flag_answer')) for r in rows)}; an item can carry several)")
     print(f"unflagged but an answer unparseable: {len(unparsed)}")
     print(f"n valid: {nv}")
+    cuts = sorted(r["cut_fraction"] for r in rows if r.get("cut_fraction") is not None)
+    if cuts:
+        q = lambda p: cuts[min(len(cuts) - 1, int(p * len(cuts)))]
+        print(f"cut position (fraction of the full CoT, all samples): min {cuts[0]:.2f}  p25 {q(.25):.2f}  "
+              f"median {q(.5):.2f}  p75 {q(.75):.2f}  max {cuts[-1]:.2f}")
+        spans = [r.get("diff_spans") for r in rows]
+        in_cut = [r.get("changes_in_cut") for r in rows]
+        print(f"changed spans in the corrupted 60%: {dict(sorted(Counter(spans).items()))}; "
+              f"inside the cut sentence/line: {dict(sorted(Counter(in_cut).items()))}")
     if not nv:
         return
 
@@ -148,11 +158,12 @@ def export_sheet(rows: list[dict], out: str, n: int, seed: int) -> None:
     sheet, side = [], []
     for i, r in enumerate(pick):
         md = r["sample_md"]
+        changes = "\n".join(f'"{o}" → "{p}"' for o, p in md.get("changes") or [])
         text = (f"QUESTION:\n{r['question']}\n\n"
-                f"ORIGINAL passage:\n{md['prefix']}\n\n"
-                f"CORRUPTED passage (the solver continued from this):\n{md['corrupted_prefix']}\n\n"
-                f"DIFF ([-removed-]{{+added+}}):\n{md['diff']}\n\n"
-                f"--- continuation from the corrupted passage ---\n{md['injected_continuation']}")
+                f"PLANTED CHANGE (original → planted):\n{changes}\n\n"
+                f"--- the solver's reasoning, ending with the planted error ---\n"
+                f"{md['injected_prefix_cut']}\n\n"
+                f"--- continuation from that point ---\n{md['injected_continuation']}")
         sheet.append({"id": i, "cot": text, "label": None})
         side.append({"id": i, "sample_id": r["sample_id"], "epoch": r["epoch"],
                      "judge_class": r.get("judge_class")})
