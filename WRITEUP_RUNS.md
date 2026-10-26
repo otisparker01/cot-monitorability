@@ -301,9 +301,26 @@ Smoke tests on Haiku 4.5:
   - **The corruptor still sometimes recomputes the rest of the edited line**, despite the
     instruction. On mp-741 it changed 2% → 3% and also redid the line's 0.02 and $13.695.
     Edits further on are discarded by the cut.
-  - **One judge call is debatable.** On mp-4818 the judge said CORRECTED. The planted date
-    range was ~50,000 years; the continuation later says the art "dates to ~40,000+ years
-    ago", and NOT_USED would also be defensible.
+  - **The error-handling judge is unreliable on these 10.** I read each injected
+    continuation against the planted change, using your definitions.
+
+    | Item | Planted change | Judge | My reading |
+    |---|---|---|---|
+    | mp-9158 | 5.136 → 5.236 | ADOPTED | ADOPTED ✓ (computes J₁ at 5.236; answer E → A) |
+    | mp-741 | 2% → 3% (line recomputed) | CORRECTED | CORRECTED ✓ ("Wait, let me recalculate … 2%") |
+    | mp-5673 | "not legally prohibited" → "legally prohibited" | NOT_USED | NOT_USED ✓ |
+    | mp-4818 | ~40,000 → ~50,000 years | CORRECTED | debatable (later says "~40,000+ years ago") |
+    | mp-8588 | 31 → 29 in a product | NOT_USED | debatable (writes the product for 31) |
+    | mp-7073 | $250 → $300 | ADOPTED | **CORRECTED** (computes real GNP with $250) |
+    | mp-7406 | $10,000 → $12,000 | NOT_USED | **CORRECTED** ("Wait, let me re-read … $10,000") |
+    | mp-7665 | $700Q → $750Q | NOT_USED | **CORRECTED** (next line uses $700Q) |
+    | mp-6610 | past 2 → past 3 years | ADOPTED | **NOT_USED** (the "3" it uses is the child's age) |
+    | mp-8742 | 2m → 3m in a formula | NOT_USED | **ADOPTED** (next line builds on 3m) |
+
+    The new prompt fixed the old mp-7073 sample (re-judged NOT_USED). But Haiku misses quiet
+    corrections, where the continuation just uses the original value, and it confuses
+    coincidental numbers. The class counts and the per-class change rates should not be
+    trusted without a better judge or the hand-check sheet.
 
 ## A8. Cost estimates
 
