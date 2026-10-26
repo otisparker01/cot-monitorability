@@ -2,9 +2,10 @@
 
 The same idea as the grader-reasoning classifier validation, but for the LLM judge
 that decides whether a biased chain-of-thought *acknowledges* the hint — the call the
-headline "unfaithful fraction" rides on. It needs **no model or API**: the judge's
-verdicts are already stored in the `.eval` logs, so this is pure local extraction +
-your labelling + an offline Cohen's kappa.
+headline "unfaithful fraction" rides on. Steps 1–5 need **no model or API**: the
+judge's verdicts are already stored in the `.eval` logs, so this is pure local
+extraction + your labelling + an offline Cohen's kappa. The tracked copies in
+`data/labels/` (see its README) let ``--kappa`` and ``--relabel`` run without the logs.
 
     # 1. pull the flip transcripts into a BLIND labelling file (+ a judge-verdict sidecar)
     python -m evals.oversight.faithfulness.validate_judge --extract \
@@ -31,6 +32,15 @@ Relabelling where the hint enters the reasoning (UPSTREAM vs TERMINAL):
     # 5. the unfaithful fraction under the lenient and strict definitions
     python -m evals.oversight.faithfulness.validate_judge --relabel labelled.jsonl \
         upstream_labelled.jsonl relabel/upstream.sidecar.jsonl
+
+Cross-checking the judge with a second model (the one step that calls an API):
+
+    # 6. the identical judge prompt, re-run with another model on every flip
+    python -m evals.oversight.faithfulness.validate_judge --rejudge anthropic/claude-opus-4-8 \
+        logs/faithfulness/haiku_mmlu logs/faithfulness/haiku_mmlu_b \
+        --out data/labels/flips.judge-opus-4-8.jsonl
+    python -m evals.oversight.faithfulness.validate_judge --kappa labelled.jsonl \
+        data/labels/flips.judge-opus-4-8.jsonl
 
 Reading `.eval` logs needs `pip install zipfile-zstd` (they are zstd-compressed zips);
 inside the repo venv, inspect-ai can read them too.
@@ -230,10 +240,51 @@ def relabel(labelled: str, upstream_labelled: str, sidecar: str) -> None:
         print(f"warning: relabel ids map to flips not labelled 'mentions the hint': {stray}")
 
 
+def rejudge(model_name: str, logdirs: list[str], out: str, max_connections: int = 4) -> None:
+    """Re-run the Exp 1 judge — the same prompt and the same YES/NO parsing as the task's
+    scorer — with ``model_name`` on every flip; write a sidecar in the --extract format."""
+    import asyncio
+
+    from dotenv import load_dotenv
+    from inspect_ai.model import ChatMessageUser, get_model
+
+    from evals.oversight.faithfulness.task import _JUDGE_TEMPLATE
+
+    load_dotenv()
+    flips = list(_flips(logdirs))
+    model = get_model(model_name)
+    sem = asyncio.Semaphore(max_connections)
+
+    async def one(i, s):
+        md = s.get("metadata") or {}
+        async with sem:
+            res = await model.generate([ChatMessageUser(content=_JUDGE_TEMPLATE.format(
+                hint=md["hint_letter"], cot=md.get("biased_cot") or ""))])
+        text = res.completion or ""
+        return {"id": i, "acknowledged": text.strip().upper().startswith("YES"), "raw": text,
+                "input_tokens": res.usage.input_tokens if res.usage else None,
+                "cache_write_tokens": res.usage.input_tokens_cache_write if res.usage else None,
+                "cache_read_tokens": res.usage.input_tokens_cache_read if res.usage else None,
+                "output_tokens": res.usage.output_tokens if res.usage else None}
+
+    async def run():
+        return await asyncio.gather(*(one(i, s) for i, _, s in flips))
+
+    rows = sorted(asyncio.run(run()), key=lambda r: r["id"])
+    _write_jsonl(Path(out), rows)
+    unparsed = sum(1 for r in rows if not r["raw"].strip().upper().startswith(("YES", "NO")))
+    tin = sum((r["input_tokens"] or 0) + (r["cache_write_tokens"] or 0) + (r["cache_read_tokens"] or 0)
+              for r in rows)
+    tout = sum(r["output_tokens"] or 0 for r in rows)
+    print(f"{model_name}: {sum(not r['acknowledged'] for r in rows)}/{len(rows)} unfaithful "
+          f"(hint not acknowledged); {unparsed} replies neither YES nor NO; "
+          f"{tin} input + {tout} output tokens; wrote {out}")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Validate the Exp 1 faithfulness judge against human labels")
     p.add_argument("--extract", nargs="+", metavar="LOGDIR", help="faithfulness .eval log dir(s)")
-    p.add_argument("--out", default="flip_labels.jsonl", help="labelling JSONL output (with --extract)")
+    p.add_argument("--out", default="flip_labels.jsonl", help="output JSONL (with --extract or --rejudge)")
     p.add_argument("--kappa", nargs=2, metavar=("LABELLED", "JUDGE"),
                    help="labelled JSONL + the .judge.jsonl sidecar")
     p.add_argument("--relabel-export", nargs="+", metavar="ARG",
@@ -241,6 +292,8 @@ def main() -> None:
     p.add_argument("--out-dir", default="relabel", help="output dir (with --relabel-export)")
     p.add_argument("--relabel", nargs=3, metavar=("LABELLED", "UPSTREAM_LABELLED", "SIDECAR"),
                    help="mention labels + UPSTREAM/TERMINAL labels + upstream.sidecar.jsonl")
+    p.add_argument("--rejudge", nargs="+", metavar="ARG",
+                   help="a judge model, then the faithfulness .eval log dir(s) in --extract order")
     args = p.parse_args()
     if args.extract:
         extract(args.extract, args.out)
@@ -252,6 +305,10 @@ def main() -> None:
         relabel_export(args.relabel_export[0], args.relabel_export[1:], args.out_dir)
     elif args.relabel:
         relabel(*args.relabel)
+    elif args.rejudge:
+        if len(args.rejudge) < 2:
+            p.error("--rejudge needs a model and at least one log dir")
+        rejudge(args.rejudge[0], args.rejudge[1:], args.out)
     else:
         p.error("use --extract <logdirs> --out <file>, --kappa <labelled> <judge>, "
                 "--relabel-export <labelled> <logdirs>, or --relabel <labelled> <upstream> <sidecar>")
