@@ -38,25 +38,32 @@ from inspect_ai.log import read_eval_log
 JUDGE_CLASSES = ("ADOPTED", "CORRECTED", "NOT_USED", "UNPARSED")
 
 
-def _resolve(path: str) -> str:
+def _resolve(path: str) -> list[str]:
+    """A single log, or every log in a directory (e.g. one run per data file), pooled."""
     if os.path.isdir(path):
         logs = sorted(glob.glob(os.path.join(path, "*.eval")))
         if not logs:
             sys.exit(f"no .eval logs in {path}")
-        return logs[-1]
-    return path
+        return logs
+    return [path]
 
 
-def load(path: str):
-    log = read_eval_log(path)
-    rows = []
-    for s in log.samples or []:
-        if not s.scores:
+def load(paths: list[str]):
+    rows, models = [], set()
+    for path in paths:
+        log = read_eval_log(path)
+        if log.status != "success":
+            print(f"skipping {path} (status={log.status})", file=sys.stderr)
             continue
-        m = dict(s.scores["mistake_injection_scorer"].metadata or {})
-        m.update(sample_id=s.id, epoch=s.epoch, question=s.input if isinstance(s.input, str) else str(s.input), sample_md=s.metadata)
-        rows.append(m)
-    return log, rows
+        models.add(log.eval.model)
+        for s in log.samples or []:
+            if not s.scores:
+                continue
+            m = dict(s.scores["mistake_injection_scorer"].metadata or {})
+            m.update(sample_id=s.id, epoch=s.epoch, question=s.input if isinstance(s.input, str) else str(s.input),
+                     sample_md=s.metadata, log=os.path.basename(path))
+            rows.append(m)
+    return ", ".join(sorted(models)), rows
 
 
 def _is_valid(r: dict) -> bool:
@@ -76,7 +83,7 @@ def _rate(k: int, n: int) -> str:
     return f"{k}/{n} = {k / n:.3f}" if n else f"{k}/{n}"
 
 
-def analyse(log, rows: list[dict]) -> None:
+def analyse(model: str, rows: list[dict]) -> None:
     n = len(rows)
     if not n:
         print("no scored samples")
@@ -86,7 +93,8 @@ def analyse(log, rows: list[dict]) -> None:
     valid = [r for r in rows if _is_valid(r)]
     nv = len(valid)
 
-    print(f"model: {log.eval.model}   framing: {rows[0].get('framing')}   samples: {n}")
+    logs = sorted({r["log"] for r in rows})
+    print(f"model: {model}   framing: {sorted({r.get('framing') for r in rows})}   samples: {n}   logs: {len(logs)}")
     print(f"flagged by the diff check: {len(flagged)}  (identical {sum(bool(r.get('flag_identical')) for r in rows)}, "
           f"length ratio outside [0.8, 1.25] {sum(bool(r.get('flag_length')) for r in rows)}, "
           f"contains 'ANSWER' {sum(bool(r.get('flag_answer')) for r in rows)}; an item can carry several)")
@@ -178,7 +186,7 @@ def check_labels(labelled: str, sidecar: str) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Analyse a mistake-injection log")
-    p.add_argument("log", help="a mistake-injection .eval file, or a dir (latest log used)")
+    p.add_argument("log", help="a mistake-injection .eval file, or a dir (all its logs pooled)")
     p.add_argument("--export-sheet", metavar="OUT", help="write a blind labelling JSONL of injected continuations")
     p.add_argument("--n", type=int, default=25, help="items on the sheet (default 25)")
     p.add_argument("--seed", type=int, default=0)
@@ -188,11 +196,11 @@ def main() -> None:
     if args.check_labels:
         check_labels(*args.check_labels)
         return
-    log, rows = load(_resolve(args.log))
+    model, rows = load(_resolve(args.log))
     if args.export_sheet:
         export_sheet(rows, args.export_sheet, args.n, args.seed)
     else:
-        analyse(log, rows)
+        analyse(model, rows)
 
 
 if __name__ == "__main__":
