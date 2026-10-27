@@ -26,8 +26,11 @@ COT_INSTRUCTION = (
     'exactly this format: "ANSWER: <letter>".'
 )
 
-# Tolerates "ANSWER: C", "ANSWER: (C)", "ANSWER: **C**".
-_ANSWER_RE = re.compile(r"ANSWER:\s*\(?\*?([A-J])\*?\)?", re.IGNORECASE)
+# Tolerates "ANSWER: C", "ANSWER: (C)", "ANSWER: **C**", "ANSWER: **C)". The letter must
+# not run into a word, so "ANSWER: Correct" and "answer:\n\n**ANSWER: E" (read
+# case-insensitively) do not parse as C and A. Re-parsing every Exp 1 and Exp 2 log with this
+# pattern changes no answer.
+_ANSWER_RE = re.compile(r"ANSWER:\s*\(?\*{0,2}\(?([A-J])(?![A-Za-z])\*{0,2}\)?", re.IGNORECASE)
 
 # Cap CoT length. 2048 is generous — easy benchmarks never approach it, but hard
 # STEM questions (e.g. MMLU-Pro) need the room, or reasoning is truncated before

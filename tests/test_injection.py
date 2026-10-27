@@ -94,3 +94,16 @@ def test_cut_after_error_none_when_identical():
 def test_strip_drops_unquoted_echoed_header():
     raw = f"Below is the first part of an analysis of a multiple-choice question:\n\n{PREFIX}"
     assert _strip_fences(raw, PREFIX) == PREFIX
+
+
+@pytest.mark.parametrize("text, want", [
+    ("ANSWER: C", "C"),
+    ("ANSWER: (C)", "C"),
+    ("ANSWER: **C**", "C"),
+    ("ANSWER: **C) 0.11 lb/mole**", "C"),
+    ("which you indicated as your answer:\n\n**ANSWER: E**", "E"),
+    ("ANSWER: Correct, it is", None),
+])
+def test_extract_answer(text, want):
+    from evals.oversight.common import extract_answer
+    assert extract_answer(text) == want

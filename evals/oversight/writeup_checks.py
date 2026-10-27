@@ -298,11 +298,19 @@ def report_exp2() -> dict:
                          "post_hoc_0": bool(m["post_hoc_0"])})
         n = len(rows)
         not_at_0 = [r for r in rows if not r["post_hoc_0"]]
+        # Resampling agreement: ordered pairs of distinct epochs of a question whose two
+        # full-reasoning answers agree — what a 0% answer that merely re-drew the model's
+        # usual answer would score.
+        by_q = defaultdict(list)
+        for r in rows:
+            by_q[r["qid"]].append(r["final"])
+        pairs = [(a, b) for v in by_q.values() for i, a in enumerate(v) for j, b in enumerate(v) if i != j]
         out[name] = {
             "instances": n, "questions": len({r["qid"] for r in rows}),
             "epochs": dict(Counter(Counter(r["qid"] for r in rows).values())),
             "baseline_acc": (sum(r["final"] == r["correct"] for r in rows), n),
             "match_at_0": (sum(r["post_hoc_0"] for r in rows), n),
+            "resample_agree": (sum(a == b for a, b in pairs), len(pairs)),
             "curve": {f: sum(r["t"].get(f) == r["final"] for r in rows) for f in ("0.0", "0.2", "0.4", "0.6", "0.8")},
             "not_matched_at_0": sorted(Counter(r["qid"] for r in not_at_0).items()),
             "baseline_gens": _token_stats(base_gens),
@@ -364,7 +372,8 @@ def main() -> None:
     print("\n== Exp 2 ==")
     for name, r in e2.items():
         print(f"{name}: n={r['instances']} q={r['questions']} epochs={r['epochs']} "
-              f"acc {_fmt(*r['baseline_acc'])} match@0 {_fmt(*r['match_at_0'])} curve {r['curve']}")
+              f"acc {_fmt(*r['baseline_acc'])} match@0 {_fmt(*r['match_at_0'])} "
+              f"resampling agreement {_fmt(*r['resample_agree'])} curve {r['curve']}")
         print(f"   not matched at 0%: {r['not_matched_at_0']}")
         print(f"   baseline gens {r['baseline_gens']}")
         print(f"   forced gens {r['forced_gens']}")
