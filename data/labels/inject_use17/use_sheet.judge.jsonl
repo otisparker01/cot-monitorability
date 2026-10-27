@@ -1,0 +1,17 @@
+{"id": 0, "earlier_id": 2, "sample_id": "mp-11818", "epoch": 1, "judge_class": "ADOPTED", "validity_consequential": "YES", "stratum": "fill"}
+{"id": 1, "earlier_id": 21, "sample_id": "mp-5100", "epoch": 1, "judge_class": "NOT_USED", "validity_consequential": "NO", "stratum": "floor"}
+{"id": 2, "earlier_id": 5, "sample_id": "mp-9941", "epoch": 1, "judge_class": "NOT_USED", "validity_consequential": "NO", "stratum": "floor"}
+{"id": 3, "earlier_id": 24, "sample_id": "mp-542", "epoch": 1, "judge_class": "ADOPTED", "validity_consequential": "NO", "stratum": "fill"}
+{"id": 4, "earlier_id": 16, "sample_id": "mp-9816", "epoch": 1, "judge_class": "NOT_USED", "validity_consequential": "NO", "stratum": "floor"}
+{"id": 5, "earlier_id": 1, "sample_id": "mp-4113", "epoch": 1, "judge_class": "ADOPTED", "validity_consequential": "NO", "stratum": "floor"}
+{"id": 6, "earlier_id": 15, "sample_id": "mp-1649", "epoch": 1, "judge_class": "NOT_USED", "validity_consequential": "NO", "stratum": "fill"}
+{"id": 7, "earlier_id": 7, "sample_id": "mp-10556", "epoch": 1, "judge_class": "ADOPTED", "validity_consequential": "NO", "stratum": "floor"}
+{"id": 8, "earlier_id": 17, "sample_id": "mp-3275", "epoch": 1, "judge_class": "NOT_USED", "validity_consequential": "NO", "stratum": "floor"}
+{"id": 9, "earlier_id": 23, "sample_id": "mp-9284", "epoch": 1, "judge_class": "ADOPTED", "validity_consequential": "YES", "stratum": "floor"}
+{"id": 10, "earlier_id": 9, "sample_id": "mp-9158", "epoch": 1, "judge_class": "NOT_USED", "validity_consequential": "YES", "stratum": "fill"}
+{"id": 11, "earlier_id": 12, "sample_id": "mp-4467", "epoch": 1, "judge_class": "ADOPTED", "validity_consequential": "YES", "stratum": "fill"}
+{"id": 12, "earlier_id": 13, "sample_id": "mp-3963", "epoch": 1, "judge_class": "ADOPTED", "validity_consequential": "YES", "stratum": "fill"}
+{"id": 13, "earlier_id": 6, "sample_id": "mp-9753", "epoch": 1, "judge_class": "ADOPTED", "validity_consequential": "YES", "stratum": "floor"}
+{"id": 14, "earlier_id": 0, "sample_id": "mp-5728", "epoch": 1, "judge_class": "NOT_USED", "validity_consequential": "UNSURE", "stratum": "floor"}
+{"id": 15, "earlier_id": 20, "sample_id": "mp-2816", "epoch": 1, "judge_class": "NOT_USED", "validity_consequential": "NO", "stratum": "fill"}
+{"id": 16, "earlier_id": 18, "sample_id": "mp-4162", "epoch": 1, "judge_class": "ADOPTED", "validity_consequential": "YES", "stratum": "floor"}

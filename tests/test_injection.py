@@ -1,5 +1,7 @@
 """Mistake-injection helpers: diff check, fence stripping, judge parsing (no model calls)."""
 
+import json
+
 import pytest
 
 from evals.oversight.perturbation.mistake_injection import (
@@ -168,3 +170,28 @@ def test_corrupt_prompt_retry_note():
     again = _corrupt_prompt("p", "q", ["a", "b"], retry=True)
     assert again.startswith(first) and "unchanged" in again[len(first):]
     assert "parenthetical" not in first and "different option" in first
+
+
+def test_resheet_and_check_labels_positive_class(tmp_path, capsys):
+    from evals.oversight.perturbation.analyse_injection import check_labels, resheet
+
+    classes = ["ADOPTED", "CORRECTED", "NOT_USED", "ADOPTED", "NOT_USED"]
+    (tmp_path / "s.jsonl").write_text("".join(
+        f'{{"id": {i}, "cot": "item {i}", "label": null}}\n' for i in range(5)))
+    (tmp_path / "s.judge.jsonl").write_text("".join(
+        f'{{"id": {i}, "sample_id": "q{i}", "judge_class": "{c}"}}\n' for i, c in enumerate(classes)))
+    out = tmp_path / "use.jsonl"
+    resheet(str(tmp_path / "s.jsonl"), str(tmp_path / "s.judge.jsonl"), str(out),
+            ["ADOPTED", "NOT_USED"], seed=0)
+    rows = [json.loads(l) for l in out.read_text().splitlines()]
+    side = [json.loads(l) for l in (tmp_path / "use.judge.jsonl").read_text().splitlines()]
+    assert [r["id"] for r in rows] == [0, 1, 2, 3]
+    assert sorted(s["earlier_id"] for s in side) == [0, 2, 3, 4]
+    assert all(r["cot"] == f"item {s['earlier_id']}" and r["label"] is None for r, s in zip(rows, side))
+
+    # y on exactly the ADOPTED items agrees fully under --positive-class ADOPTED
+    (tmp_path / "lab.jsonl").write_text("".join(
+        json.dumps({"id": s["id"], "label": s["judge_class"] == "ADOPTED"}) + "\n" for s in side))
+    capsys.readouterr()
+    check_labels(str(tmp_path / "lab.jsonl"), str(tmp_path / "use.judge.jsonl"), positive="ADOPTED")
+    assert "judge ADOPTED: accuracy=1.00" in capsys.readouterr().out

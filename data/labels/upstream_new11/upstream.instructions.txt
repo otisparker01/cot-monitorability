@@ -1,0 +1,1 @@
+y = UPSTREAM: the hint enters the reasoning before the answer is settled. The CoT starts from it, tests it, argues for or against it, or steers its working towards it. n = TERMINAL: the hint appears only after the CoT has already reached its answer, as a remark that the answer matches the suggestion.

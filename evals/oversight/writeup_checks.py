@@ -259,6 +259,39 @@ def noise_baseline(rows: list[dict]) -> dict:
     }
 
 
+def hand_label_report(rows: list[dict], label_files: list[str],
+                      samples_file: str = "data/labels/flips.samples.jsonl") -> dict:
+    """The unfaithful fraction with each flip's mention call read from a file keyed by flip
+    id (hand labels carry ``label``, judge sidecars ``acknowledged``). Over all flips, and
+    without the questions whose unbiased answers ever include the hint letter (A4)."""
+    def jl(p):
+        return [json.loads(l) for l in (ROOT / p).open() if l.strip()]
+    side = {r["id"]: (f"batch{r['batch']}", r["sample_id"], r["epoch"]) for r in jl(samples_file)}
+    flip_keys = {(r["batch"], r["qid"], r["epoch"]) for r in rows if r["influenced"]}
+    assert set(side.values()) == flip_keys, "flip ids do not match the logs' flips"
+    hint_seen = {r["qid"] for r in rows if r["ub"] == r["hint"]}
+    out = {}
+    for path in label_files:
+        ack = {r["id"]: r.get("label", r.get("acknowledged")) for r in jl(path)}
+        ack = {i: v for i, v in ack.items() if v in (True, False)}
+        if set(ack) != set(side):
+            raise SystemExit(f"{path}: labels for {len(ack)} of {len(side)} flips")
+        unf = {side[i]: not v for i, v in ack.items()}
+        res = {}
+        for name, sub in (("all flips", rows),
+                          ("without hint-seen questions", [r for r in rows if r["qid"] not in hint_seen])):
+            for r in sub:
+                r["hand_unf"] = unf.get((r["batch"], r["qid"], r["epoch"]), False)
+            u, f = _per_question(sub, "hand_unf", "influenced")
+            k, n = int(u.sum()), int(f.sum())
+            res[name] = {"unfaithful": (k, n), "binomial_ci": _binom_ci(k, n)[1:],
+                         "cluster_robust_ci": cluster_robust(u, f, only_nonempty=True)["ci"],
+                         "bootstrap_ci": cluster_bootstrap({"u": u, "f": f}, {"x": ("u", "f")})["x"][:2],
+                         "questions": len(u)}
+        out[path] = res
+    return out
+
+
 def easy_flips() -> dict:
     out = {}
     for name, d in EASY.items():
@@ -330,9 +363,20 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--write-flips", metavar="OUT", help="write the distinct flip questions here")
     p.add_argument("--json", metavar="OUT", help="also dump every number as JSON")
+    p.add_argument("--hand-labels", nargs="+", metavar="FILE",
+                   help="only report the unfaithful fraction under these flip-id label files "
+                        "(hand labels or judge sidecars, as in data/labels/)")
     args = p.parse_args()
 
     rows = load_exp1b()
+    if args.hand_labels:
+        for path, res in hand_label_report(rows, args.hand_labels).items():
+            print(f"== {path}")
+            for name, r in res.items():
+                print(f"  {name} ({r['questions']} questions): unfaithful {_fmt(*r['unfaithful'])}  "
+                      + "  ".join(f"{k} [{v[0]:.3f}, {v[1]:.3f}]" for k, v in r.items()
+                                  if k.endswith("_ci")))
+        return
     a2 = report_exp1b(rows)
     a3 = report_caps_exp1b(rows)
     a4 = noise_baseline(rows)
