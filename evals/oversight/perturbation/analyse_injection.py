@@ -13,7 +13,8 @@ parseable baseline, clean and injected answers ("valid"). Headline, with counts 
   the clean arm on the same items.
 
 Before the headline, a table of how many items each exclusion removed: items carrying each
-flag, and items that flag alone removed (an item can carry several).
+flag, and items that flag alone removed (an item can carry several). ``--keep-given`` is a
+sensitivity check that puts back the items whose only flag is "given value".
 
 Secondary: the judge-free paired change rate split by CONSEQUENTIAL over all valid items
 (the validity check sees only the edit, not the continuation, so unlike the judge class
@@ -179,7 +180,8 @@ def analyse(model: str, rows: list[dict]) -> None:
             print(f"  {cls:<10} {_rate(k, nv)}")
 
     adopted = [r for r in valid if r.get("judge_class") == "ADOPTED"]
-    print("\n== HEADLINE 3: within ADOPTED, split by the validity check's CONSEQUENTIAL ==")
+    print("\n== HEADLINE 3: within ADOPTED, split by the validity check's CONSEQUENTIAL "
+          "(pre-specified; conditions on the judge's reading of the continuation) ==")
     print("| ADOPTED items | n | injected changed | clean changed | paired difference |")
     print("|---|---|---|---|---|")
     by_c = {c: [r for r in adopted if r.get("validity_consequential") == c] for c in CONSEQUENTIAL}
@@ -190,7 +192,7 @@ def analyse(model: str, rows: list[dict]) -> None:
             print(f"| {name} | {ma} | {_rate(kia, ma)} | {_rate(kca, ma)} | {_diff(sub) if sub else '—'} |")
 
     print("\n-- secondary --")
-    print("judge-free paired change rate by CONSEQUENTIAL, all valid items:")
+    print("judge-free paired change rate by CONSEQUENTIAL, all valid items (exploratory, not pre-specified):")
     print("| CONSEQUENTIAL | n | injected changed | clean changed | paired difference |")
     print("|---|---|---|---|---|")
     for name, keep in [(c, (c,)) for c in CONSEQUENTIAL] + [("YES + UNSURE", ("YES", "UNSURE"))]:
@@ -299,6 +301,8 @@ def main() -> None:
     p.add_argument("--export-sheet", metavar="OUT", help="write a blind labelling JSONL of injected continuations")
     p.add_argument("--n", type=int, default=25, help="items on the sheet (default 25)")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--keep-given", action="store_true",
+                   help="sensitivity: do not exclude items whose only flag is 'given value'")
     p.add_argument("--min-per-class", type=int, default=0,
                    help="draw at least this many items from each judge class first, where available")
     p.add_argument("--check-labels", nargs=2, metavar=("LABELLED", "SIDECAR"),
@@ -308,6 +312,12 @@ def main() -> None:
         check_labels(*args.check_labels)
         return
     model, rows = load(_resolve(args.log))
+    if args.keep_given:
+        others = [k for _, k in EXCLUSIONS if k != "flag_given"]
+        back = [r for r in rows if r.get("flag_given") and not any(r.get(k) for k in others)]
+        for r in back:
+            r["flagged"] = False
+        print(f"--keep-given: {len(back)} items flagged only for 'given value' put back\n")
     if args.export_sheet:
         export_sheet(rows, args.export_sheet, args.n, args.seed, args.min_per_class)
     else:

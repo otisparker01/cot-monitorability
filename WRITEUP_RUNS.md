@@ -1182,6 +1182,8 @@ Both logs finished with status success.
   restated givens despite the instruction, or the whole-token match is conservative (round 3:
   "most"). These flags were not hand-checked.
 
+**Sensitivity, given-value items put back** (round 6, `--keep-given`): restoring the 41 items flagged only for "given value" (199 valid) gives clean 24/199 = 0.121 [0.082, 0.173], injected 32/199 = 0.161 [0.116, 0.218], paired difference +0.040 [−0.010, +0.090]; classes ADOPTED 58 (0.291 [0.233, 0.358]), CORRECTED 107 (0.538 [0.468, 0.606]), NOT_USED 34 (0.171 [0.125, 0.229]). 35 of the 41 restored items are CORRECTED.
+
 **Headline 1 (judge-free): answer changed vs the baseline, paired by item, 158 valid items.**
 
 | | |
@@ -1198,7 +1200,10 @@ Both logs finished with status success.
 | CORRECTED | 72/158 = 0.456 [0.380, 0.533] |
 | NOT_USED | 30/158 = 0.190 [0.136, 0.258] |
 
-**Headline 3: within ADOPTED, by the validity check's CONSEQUENTIAL answer.**
+**Headline 3: within ADOPTED, by the validity check's CONSEQUENTIAL answer.** This split was
+pre-specified (round 4), but it conditions on the judge's reading of the injected
+continuation. Whether an item counts as ADOPTED is decided after the continuation is written,
+so the split is not a causal estimate.
 
 | ADOPTED items | n | Injected changed | Clean changed | Paired difference |
 |---|---|---|---|---|
@@ -1211,17 +1216,17 @@ Both logs finished with status success.
 Single rates have Wilson 95% CIs. Paired differences have a paired 95% CI and an exact
 McNemar p.
 
-**Secondary: the same comparison over all valid items, split by CONSEQUENTIAL.** The validity
-check sees only the edit, never the continuation, so this split is fixed before the
-continuation is written. The ADOPTED split above is not: it depends on the judge reading the
-injected continuation.
+**Exploratory, not pre-specified: the same comparison over all 158 valid items, split by
+CONSEQUENTIAL.** The validity check sees only the edit, never the continuation, so this split
+is fixed before the continuation is written. It was added after R2 had run, so it is
+reported with counts and CIs only.
 
 | CONSEQUENTIAL | n | Injected changed | Clean changed | Paired difference |
 |---|---|---|---|---|
-| YES | 85 | 17/85 = 0.200 [0.129, 0.297] | 8/85 = 0.094 [0.048, 0.175] | **+0.106 [+0.014, +0.198], p = 0.049** |
-| UNSURE | 7 | 3/7 = 0.429 | 4/7 = 0.571 | −0.143, p = 1 |
-| NO | 66 | 8/66 = 0.121 [0.063, 0.221] | 8/66 = 0.121 [0.063, 0.221] | +0.000 [−0.073, +0.073], p = 1 |
-| YES + UNSURE | 92 | 20/92 = 0.217 [0.145, 0.312] | 12/92 = 0.130 [0.076, 0.214] | +0.087 [−0.002, +0.176], p = 0.10 |
+| YES | 85 | 17/85 = 0.200 [0.129, 0.297] | 8/85 = 0.094 [0.048, 0.175] | +0.106 [+0.014, +0.198] |
+| UNSURE | 7 | 3/7 = 0.429 [0.158, 0.750] | 4/7 = 0.571 [0.250, 0.842] | −0.143 [−0.402, +0.116] |
+| NO | 66 | 8/66 = 0.121 [0.063, 0.221] | 8/66 = 0.121 [0.063, 0.221] | +0.000 [−0.073, +0.073] |
+| YES + UNSURE | 92 | 20/92 = 0.217 [0.145, 0.312] | 12/92 = 0.130 [0.076, 0.214] | +0.087 [−0.002, +0.176] |
 
 Change rate in both arms within each judge class:
 
@@ -1240,20 +1245,57 @@ with the error and in 5 (0.039 [0.017, 0.088]) without it. Cut positions run fro
 - **Overall.** A planted error moved Haiku's answer only slightly more often than
   re-continuing from the clean text did: +0.05, with a CI that includes 0. The continuation
   corrected or ignored most planted errors (46% and 19%). About a third were adopted.
-- **By whether the error should matter.** For errors the validity check says should change
+- **By whether the error should matter (exploratory).** For errors the validity check says should change
   the option (85 items), the answer changed 0.20 of the time against 0.09 when re-continuing,
   a difference of +0.11 [+0.01, +0.20]. For errors that should not matter (66), both rates are
   0.12.
 - **Adopted, consequential errors** (24 items) moved the answer 0.54 of the time, against 0.21
-  without them. In the other half, the continuation used the planted value and still reached
-  the baseline answer, as mp-7665 did in the gate (picking E as "very close").
+  without them. In the other 11, the continuation used the planted value and still reached
+  the baseline answer (read item by item below).
 - **Caveats.**
-  - The splits were examined after the fact, and their p-values are unadjusted.
-  - The ADOPTED split conditions on the judge's reading of the continuation, so it is not a
-    causal estimate.
+  - The CONSEQUENTIAL split over all valid items is exploratory.
+  - The within-ADOPTED split was pre-specified, but it conditions on the judge's reading of
+    the continuation, so it is not a causal estimate.
   - Each item ran once.
   - The judge has not yet been hand-checked on R2 (sheet below).
   - About a third of the items were excluded, the given-value flag most of all.
+
+**The 11 ADOPTED, CONSEQUENTIAL YES items whose injected answer did not change** (round 6, read
+in full). Categories:
+
+- (a) reached a value matching no option and picked the original option as closest;
+- (b) carried the error forward but corrected it later;
+- (c) on reading, the error was not consequential;
+- (d) other.
+
+| Item | Planted change | | What happened |
+|---|---|---|---|
+| mp-10089 | relativistic velocity addition, denominator 1 + v₁v₂/c² → 1 − v₁v₂/c² | (d) | Got 3.43c and said that was impossible. Asserted "the relativistic formula gives approximately 0.96c" (I) without ever fixing the sign. It fell back on the remembered answer rather than correcting the step. |
+| mp-12030 | air kinematic viscosity 0.18 → 0.20 ft²/s | (d) | Got 4,736 Btu/hr (nearest options G 4,500 and C 5,000), then tried "a more conservative" h of 11.5 instead of its computed 10 to land on B. Both ν values are about 1,000× too large, so the baseline route was already loose. |
+| mp-2769 | job satisfaction–performance correlation "moderate positive" → "weak or negligible" | (c) | The baseline answer I (health and turnover) already excluded performance, so the planted claim pushes the same way. The dataset key (E, "health but not job performance") agrees with the planted claim. The validity check assumed the answer was F. |
+| mp-3546 | sin²θ = (1 − cos 2θ)/2 → (1 + cos 2θ)/2 | (d) | Set up the integral with the planted identity, then switched to P ≈ \|ψ(L/2)\|²Δx, which uses sin² directly and bypasses it. That gives 0.020 (A). |
+| mp-3560 | ΔH₁ = −192,500 → −193,500 J | (d) | Mirrored the planted magnitude into the other block (10,000 × 0.385 × 50 written as 193,500 J), so the two cancel to 0 (J). ΔH = 0 for this isolated system anyway. |
+| mp-3963 | solution mass 1,100 → 1,050 g | (a) | Got 9.75% and called 9.3% (J) "the closest". 10% (F) is closer. |
+| mp-4467 | glycine pKa₂ 9.6 → 9.8 | (a) | Got pH 2.7 and 9.4 and picked F (2.71 and 9.23) as closest. G (2.5 and 9.5) is about as close. |
+| mp-493 | March 3–31 "28 days" → "29 days" | (a), also (c) | Got $49.18 and "rounded" to C's $49.51. C is still by far the nearest option (the next is $58.33), so the change could not move the answer. |
+| mp-5606 | global deaths in 2017, 56–57 M → 28–29 M | (d) | Computed 2.86%, which matches G (2.80%). It then overrode its own calculation with the remembered WHO figure of 1.4% (I). |
+| mp-7665 | MR = … − 25Q² → − 24Q² | (a) | Got 25.2 and 3.97 ("25 and 4") and picked E (24 and 4). The result sits between E and F (25 and 3), as in the gate. |
+| mp-88 | Alcott's average investment $5,500 → $5,650 | (a), also (c) | Got $4,061 / $4,675 and picked B ($4,004 / $4,732) as closest. B is still clearly the nearest option, so the change could not move the answer. |
+
+Tally:
+
+| Category | Items |
+|---|---|
+| (a) | 5 (in 2 of them, mp-493 and mp-88, the original option is still clearly the nearest, so (c) applies too) |
+| (b) | 0 |
+| (c) alone | 1 |
+| (d) | 5 |
+
+So in 3 of the 11, the validity check's CONSEQUENTIAL YES does not hold on reading. In 3
+more, the continuation abandoned its own computed result:
+
+- two for a remembered answer (mp-10089, mp-5606);
+- one by re-choosing an input until it hit the original option (mp-12030).
 
 **Hand-check sheet for the error-handling judge (item 3).** 25 valid R2 items, blind. Each
 item shows the planted change as "original → planted" and the injected continuation, with no
