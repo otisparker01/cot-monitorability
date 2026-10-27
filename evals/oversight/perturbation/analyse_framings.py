@@ -8,6 +8,11 @@ denominator, overall, split by whether the full-reasoning answer was correct, an
 into the 46 Exp 1b flip questions vs the rest. Then the items whose truncated answer
 changed between 0% and 80%, and the token-cap check.
 
+Last, the noise ceiling for the 0% match: how often two independent full-reasoning answers
+to the same question agree, overall and for the flip questions vs the rest, by two
+measures: the first two runs' baselines on the same question, and ordered pairs of distinct
+Exp 1b epochs (unbiased answers, same questions and prompt). CIs resample questions.
+
 Answers are re-parsed from the stored completions with the current answer regex (the
 prefill framing takes the letter straight after "ANSWER:"), and the number of answers
 that differ from the ones recorded in the log is reported.
@@ -18,12 +23,15 @@ that differ from the ones recorded in the log is reported.
 
 import json
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
+from itertools import permutations
 from pathlib import Path
 
+import numpy as np
 from inspect_ai.log import list_eval_logs, read_eval_log
 
 from evals.oversight.common import _ANSWER_RE, extract_answer
+from evals.oversight.writeup_checks import cluster_bootstrap, load_exp1b
 
 FRACTIONS = ["0.0", "0.2", "0.4", "0.6", "0.8"]
 FORCE_MAX_TOKENS = 24
@@ -76,6 +84,35 @@ def _match(rows: list[dict], f: str, parseable_only: bool = False) -> str:
     return _frac(k, len(pool))
 
 
+def _agreement(per_q: dict[str, tuple[int, int]], qids: list[str]) -> str:
+    """Pooled agreement Σk/Σn over ``qids`` with a 95% cluster-bootstrap CI."""
+    k = np.array([per_q[q][0] for q in qids], float)
+    n = np.array([per_q[q][1] for q in qids], float)
+    lo, hi, _ = cluster_bootstrap({"k": k, "n": n}, {"a": ("k", "n")})["a"]
+    return f"{k.sum() / n.sum():.3f} ({int(k.sum())}/{int(n.sum())}) [{lo:.3f}, {hi:.3f}]"
+
+
+def noise_ceiling(data: dict, labels: list[str], flips46: set[str]) -> None:
+    exp1b = defaultdict(list)
+    for r in load_exp1b():
+        exp1b[r["qid"]].append(r["ub"])
+    measures = {"Exp 1b unbiased, ordered pairs of distinct epochs": {
+        q: (sum(a is not None and a == b for a, b in permutations(v, 2)), len(v) * (len(v) - 1))
+        for q, v in exp1b.items()}}
+    if len(labels) >= 2:
+        a, b = ({r["qid"]: r["final_answer"] for r in data[l][0]} for l in labels[:2])
+        measures[f"{labels[0]} vs {labels[1]} baselines"] = {
+            q: (int(a[q] is not None and a[q] == b.get(q)), 1) for q in a if q in b}
+    print("\nnoise ceiling: agreement between two full-reasoning answers, 95% cluster bootstrap")
+    print("| measure | all | 46 flip questions | other questions |")
+    print("|---|---|---|---|")
+    for name, per_q in measures.items():
+        qs = sorted(per_q)
+        print(f"| {name} | {_agreement(per_q, qs)} | "
+              f"{_agreement(per_q, [q for q in qs if q in flips46])} | "
+              f"{_agreement(per_q, [q for q in qs if q not in flips46])} |")
+
+
 def main() -> None:
     runs = [a.split("=", 1) for a in sys.argv[1:]]
     if not runs or any(len(r) != 2 for r in runs):
@@ -113,6 +150,8 @@ def main() -> None:
             for po, tag in ((False, ""), (True, " (parseable only)")):
                 row(f"{subset}: match at {int(float(f) * 100)}%{tag}",
                     lambda rs, f=f, keep=keep, po=po: _match([r for r in rs if keep(r)], f, po))
+
+    noise_ceiling(data, labels, flips46)
 
     for l in labels:
         print(f"\n{l}: answers differing from those recorded in the log after re-parsing: {data[l][2]}")

@@ -4,6 +4,7 @@ import pytest
 
 from evals.oversight.perturbation.mistake_injection import (
     FRAMINGS,
+    _corrupt_prompt,
     _strip_fences,
     cut_after_error,
     is_given_value,
@@ -11,6 +12,8 @@ from evals.oversight.perturbation.mistake_injection import (
     diff_check,
     mistake_injection,
     parse_judge,
+    parse_validity,
+    validity_prompt,
     word_diff,
 )
 
@@ -127,3 +130,41 @@ def test_strip_drops_unquoted_echoed_header():
 def test_extract_answer(text, want):
     from evals.oversight.common import extract_answer
     assert extract_answer(text) == want
+
+
+def test_cut_after_error_original_sentence_and_context():
+    orig = "Given x = 3.\nSo y = 2x = 6. Then z = y + 1 = 7."
+    corr = "Given x = 3.\nSo y = 2x = 8. Then z = y + 1 = 7."
+    cut = cut_after_error(orig, corr)
+    assert cut["original_context"] == "So y = 2x = 6."
+    assert cut["planted_context"] == "So y = 2x = 8."
+    assert cut["context_before"] == "Given x = 3.\n"
+
+
+def test_cut_after_error_first_sentence_has_no_context():
+    cut = cut_after_error("A is 5. B is 7.", "A is 6. B is 7.")
+    assert cut["context_before"] == "" and cut["original_context"] == "A is 5."
+
+
+@pytest.mark.parametrize("text, want", [
+    ("The planted value is wrong.\nERROR: YES\nCONSEQUENTIAL: YES", ("YES", "YES")),
+    ("ERROR: **NO**\nCONSEQUENTIAL: NO", ("NO", "NO")),
+    ("ERROR: YES\nCONSEQUENTIAL: UNSURE", ("YES", "UNSURE")),
+    ("ERROR: <YES|NO> ... ERROR: NO\nCONSEQUENTIAL: <YES|NO|UNSURE>", ("NO", "UNPARSED")),
+    ("no verdict", ("UNPARSED", "UNPARSED")),
+])
+def test_parse_validity(text, want):
+    assert parse_validity(text) == want
+
+
+def test_validity_prompt_shows_both_versions():
+    out = validity_prompt("Q {with braces}?", ["1", "2"], "Step 1.\n", "y = 6.", "y = 8.", [("6.", "8.")])
+    assert '"y = 6."' in out and '"y = 8."' in out and "Q {with braces}?" in out
+    assert '"6." → "8."' in out and "A) 1" in out
+
+
+def test_corrupt_prompt_retry_note():
+    first = _corrupt_prompt("p", "q", ["a", "b"])
+    again = _corrupt_prompt("p", "q", ["a", "b"], retry=True)
+    assert again.startswith(first) and "unchanged" in again[len(first):]
+    assert "parenthetical" not in first and "different option" in first
