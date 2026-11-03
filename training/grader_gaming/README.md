@@ -41,8 +41,9 @@ thinking scored as the answer, earning higher reward than finished ones. See
 
 ## Setup
 
-- **Policy:** Qwen3-8B (small enough that it must externalise reasoning, so the
-  thinking block is a trustworthy — if lower-bound — window onto grader-modelling).
+- **Policy:** Qwen3-8B (chosen as small enough that multi-step reasoning is likely
+  to be externalised; whether the thinking block is a complete window onto
+  grader-modelling is untested, given the CoT unfaithfulness found in Experiment 1).
 - **Backend:** trl `GRPOTrainer` with HF-generate rollouts (`use_vllm=False`; vLLM
   served only the judge) on the Imperial DoC SLURM cluster.
   Each arm is a self-contained **2-GPU A40** job — a Qwen3-14B judge on one card,
